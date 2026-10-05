@@ -1,0 +1,227 @@
+<div class="stage-shell">
+  <header class="stage-header">
+    <div class="brand">
+      <span class="brand-mark">CUE</span>
+      <div>
+        <small>STAGE CALL &amp; PROMPT BOOK</small>
+        <h1>{{this.show.title}}</h1>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span>{{this.show.venue}}</span>
+      <span>{{this.show.date}}</span>
+      <span class={{if this.errors "status-error" "status-ok"}}>{{if this.errors (concat this.errors " 项需处理") "当前无硬性冲突"}}</span>
+    </div>
+    <div class="header-actions">
+      <PaperButton @onClick={{this.undo}} @title="撤销 Ctrl/Cmd+Z">撤销</PaperButton>
+      <PaperButton @onClick={{this.redo}} @title="重做 Ctrl/Cmd+Y">重做</PaperButton>
+      <PaperButton @raised={{true}} @primary={{true}} @onClick={{fn this.createCueDraft "灯光"}}>新增提示</PaperButton>
+    </div>
+  </header>
+
+  <section class="show-strip">
+    <PaperInput @label="演出名称" @value={{this.show.title}} @onChange={{this.updateShowTitle}} class="show-title-input" />
+    <div class="show-stats">
+      <span><strong>{{this.show.scenes.length}}</strong> 场次</span>
+      <span><strong>{{this.allCues.length}}</strong> 条提示</span>
+      <span><strong>{{this.errors}}</strong> 项阻塞</span>
+    </div>
+    <div class="search-box">
+      <PaperInput @label="查找场次" @value={{this.search}} @onChange={{this.setSearch}} />
+    </div>
+  </section>
+
+  <main class="stage-workspace">
+    <aside class="scene-rail paper-surface">
+      <div class="rail-heading">
+        <div><small>SCENES</small><h2>幕次与场次</h2></div>
+        <PaperButton @iconButton={{true}} @primary={{true}} @onClick={{this.addScene}} @title="新增场次">＋</PaperButton>
+      </div>
+      <div class="scene-list">
+        {{#each this.filteredScenes as |scene|}}
+          <button type="button" class="scene-item {{if scene.active "is-active"}}" {{on "click" (fn this.selectScene scene.id)}}>
+            <span class="act-name">{{scene.act}}</span>
+            <strong>{{scene.name}} · {{scene.title}}</strong>
+            <small>{{scene.startTime}} · {{scene.cues.length}} 条 · {{scene.issueCount}} 项检查</small>
+          </button>
+        {{else}}
+          <p class="empty-copy">未找到场次</p>
+        {{/each}}
+      </div>
+      <div class="rail-footer">
+        <PaperButton @onClick={{this.copyPreviousScene}} class="wide-button">复制上一场流程</PaperButton>
+        <PaperButton @onClick={{this.lockVersion}} class="wide-button" @warn={{true}}>锁定当前版本</PaperButton>
+      </div>
+    </aside>
+
+    <section class="cue-board">
+      {{#if this.activeScene}}
+        <div class="board-heading paper-surface">
+          <div>
+            <small>ACTIVE SCENE</small>
+            <div class="scene-title-edit">
+              <PaperInput @value={{this.activeScene.act}} @onChange={{fn this.updateSceneField "act"}} />
+              <PaperInput @value={{this.activeScene.name}} @onChange={{fn this.updateSceneField "name"}} />
+              <PaperInput @value={{this.activeScene.title}} @onChange={{fn this.updateSceneField "title"}} />
+            </div>
+          </div>
+          <PaperInput @label="开场时间" @value={{this.activeScene.startTime}} @onChange={{fn this.updateSceneField "startTime"}} />
+          <div class="lock-state">
+            {{#if this.activeScene.locked}}
+              <span class="locked-label">本场已锁定</span>
+              <PaperButton @onClick={{this.createRevision}}>建立修订</PaperButton>
+            {{else}}
+              <PaperButton @onClick={{this.toggleSceneLock}}>锁定本场</PaperButton>
+            {{/if}}
+          </div>
+        </div>
+
+        <div class="timeline paper-surface">
+          <div class="timeline-head">
+            <div><small>PROMPT SEQUENCE</small><h2>提示顺序与时间</h2></div>
+            <div class="keyboard-note">拖动排序 · <kbd>Alt</kbd> + <kbd>↑↓</kbd> 调整 · <kbd>N</kbd> 新建</div>
+          </div>
+          <div class="timeline-labels">
+            <span>时间</span><span>类型 / 提示内容</span><span>时长</span><span>负责人</span>
+          </div>
+          <div class="cue-list">
+            {{#each this.cueRows as |cue|}}
+              <article
+                class="cue-row kind-{{cue.kindClass}} {{if cue.selected "is-selected"}}"
+                draggable="true"
+                {{on "dragstart" (fn this.startDrag cue.id)}}
+                {{on "dragover" this.allowDrop}}
+                {{on "drop" (fn this.dropOn cue.id)}}
+                {{on "click" (fn this.selectCue cue.id)}}
+              >
+                <div class="cue-time">
+                  <span class="drag-dot">⠿</span>
+                  <strong>{{cue.start}}</strong>
+                  <small>至 {{cue.end}}</small>
+                </div>
+                <div class="cue-main">
+                  <div class="cue-title-line">
+                    <span class="cue-index">{{cue.index}}</span>
+                    <span class="cue-kind">{{cue.kind}}</span>
+                    <h3>{{cue.title}}</h3>
+                    {{#if cue.hasIssue}}<span class="issue-flag">检查</span>{{/if}}
+                  </div>
+                  <p>
+                    {{#if cue.lighting}}灯光：{{cue.lighting}}{{/if}}
+                    {{#if cue.sound}}音响：{{cue.sound}}{{/if}}
+                    {{#if cue.props.length}}道具：{{join ", " cue.props}}{{/if}}
+                    {{#if cue.cast.length}}演员：{{join ", " cue.cast}}{{/if}}
+                  </p>
+                </div>
+                <div class="cue-duration">{{cue.duration}}<small>秒</small></div>
+                <div class="cue-owner">
+                  <strong>{{if cue.owner cue.owner "待指定"}}</strong>
+                  <small>{{if cue.dependsOn.length (concat cue.dependsOn.length " 个前置") "无前置依赖"}}</small>
+                </div>
+              </article>
+            {{else}}
+              <div class="empty-board">
+                <h3>本场还没有提示</h3>
+                <p>新增第一条灯光、音响或演员提示，系统会自动建立时间轴。</p>
+                <PaperButton @raised={{true}} @primary={{true}} @onClick={{fn this.createCueDraft "灯光"}}>新增第一条提示</PaperButton>
+              </div>
+            {{/each}}
+          </div>
+          <button type="button" class="add-row" {{on "click" (fn this.createCueDraft "灯光")}}>＋ 添加提示点</button>
+        </div>
+      {{/if}}
+    </section>
+
+    <aside class="inspector-rail">
+      <section class="inspector paper-surface">
+        <div class="inspector-heading">
+          <div><small>{{if this.draft "CUE EDITOR" "CUE INSPECTOR"}}</small><h2>{{if this.draft "编辑提示" "提示详情"}}</h2></div>
+          {{#if this.draft}}<button type="button" class="close-button" {{on "click" this.cancelDraft}}>×</button>{{/if}}
+        </div>
+        {{#if this.draft}}
+          <div class="draft-form">
+            <PaperSelect @label="提示类型" @options={{this.cueKindOptions}} @selected={{this.draft.kind}} @onChange={{fn this.updateDraft "kind"}} />
+            <PaperInput @label="提示标题" @value={{this.draft.title}} @onChange={{fn this.updateDraft "title"}} />
+            <PaperInput @label="时长（秒）" @type="number" @value={{this.draft.duration}} @onChange={{fn this.updateDraft "duration"}} />
+            <PaperSelect @label="负责人" @options={{this.ownerOptions}} @selected={{this.draft.owner}} @onChange={{fn this.updateDraft "owner"}} />
+            <PaperInput @label="灯光提示" @textarea={{true}} @passThru={{hash rows=2}} @value={{this.draft.lighting}} @onChange={{fn this.updateDraft "lighting"}} />
+            <PaperInput @label="音响提示" @textarea={{true}} @passThru={{hash rows=2}} @value={{this.draft.sound}} @onChange={{fn this.updateDraft "sound"}} />
+            <PaperInput @label="道具（顿号分隔）" @value={{this.draft.props}} @onChange={{fn this.updateDraft "props"}} />
+            <PaperInput @label="演员（顿号分隔）" @value={{this.draft.cast}} @onChange={{fn this.updateDraft "cast"}} />
+            <PaperInput @label="前置提示 ID" @value={{this.draft.dependsOn}} @onChange={{fn this.updateDraft "dependsOn"}} />
+            <PaperInput @label="备注" @textarea={{true}} @passThru={{hash rows=3}} @value={{this.draft.notes}} @onChange={{fn this.updateDraft "notes"}} />
+            <div class="form-actions">
+              {{#if this.draft.id}}<PaperButton @warn={{true}} @onClick={{fn this.removeCue this.draft.id}}>删除</PaperButton>{{/if}}
+              <span></span>
+              <PaperButton @onClick={{this.cancelDraft}}>取消</PaperButton>
+              <PaperButton @raised={{true}} @primary={{true}} @onClick={{this.saveDraft}}>保存提示</PaperButton>
+            </div>
+          </div>
+        {{else if this.selectedCue}}
+          <div class="selected-cue">
+            <span class="selected-kind">{{this.selectedCue.kind}}</span>
+            <h3>{{this.selectedCue.title}}</h3>
+            <dl>
+              <dt>负责人</dt><dd>{{if this.selectedCue.owner this.selectedCue.owner "缺失"}}</dd>
+              <dt>灯光</dt><dd>{{if this.selectedCue.lighting this.selectedCue.lighting "—"}}</dd>
+              <dt>音响</dt><dd>{{if this.selectedCue.sound this.selectedCue.sound "—"}}</dd>
+              <dt>道具</dt><dd>{{if this.selectedCue.props.length this.selectedProps "—"}}</dd>
+              <dt>演员</dt><dd>{{if this.selectedCue.cast.length this.selectedCast "—"}}</dd>
+              <dt>备注</dt><dd>{{if this.selectedCue.notes this.selectedCue.notes "—"}}</dd>
+            </dl>
+            <div class="inspector-actions">
+              <PaperButton @onClick={{this.editSelectedCue}} @raised={{true}} @primary={{true}}>编辑提示</PaperButton>
+              <PaperButton @onClick={{fn this.moveSelected -1}}>上移一条</PaperButton>
+              <PaperButton @onClick={{fn this.moveSelected 1}}>下移一条</PaperButton>
+            </div>
+          </div>
+        {{else}}
+          <p class="empty-copy">选择一条提示查看详细信息。</p>
+        {{/if}}
+      </section>
+
+      <section class="check-panel paper-surface">
+        <div class="panel-heading">
+          <div><small>VALIDATION</small><h2>检查提示</h2></div>
+          <span class="issue-count">{{this.issues.length}}</span>
+        </div>
+        <div class="issue-list">
+          {{#each this.issues as |issue|}}
+            <button type="button" class="issue-item severity-{{issue.severity}}" {{on "click" (fn this.selectCue issue.cueId)}}>
+              <span class="issue-icon">{{if issue.icon issue.icon "i"}}</span>
+              <span><strong>{{issue.title}}</strong><small>{{issue.detail}}</small></span>
+            </button>
+          {{else}}
+            <div class="all-clear"><span>✓</span><p>未发现时间、负责人、撞场或失效引用问题。</p></div>
+          {{/each}}
+        </div>
+      </section>
+
+      <section class="version-panel paper-surface">
+        <div class="panel-heading"><div><small>LOCKED VERSIONS</small><h2>版本比较</h2></div></div>
+        {{#if this.versions.length}}
+          <PaperSelect @label="选择锁定版" @options={{this.versions}} @optionLabelPath="name" @selected={{this.compareVersion}} @onChange={{this.selectCompareVersion}} class="version-select" />
+          {{#if this.compareVersion}}
+            <div class="version-summary">
+              <strong>{{this.compareVersion.name}}</strong>
+              <small>{{this.compareVersion.data.title}} · {{this.versionDiff.length}} 条提示</small>
+            </div>
+            <div class="diff-list">
+              {{#each this.versionDiff as |diff|}}
+                <div class="diff-row {{if diff.changed "is-changed"}}">
+                  <span>{{diff.label}}</span>
+                  <p>{{diff.before}}</p>
+                  <p>{{diff.after}}</p>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+        {{else}}
+          <p class="empty-copy">尚未锁定版本。锁定后可比较当前流程与历史快照。</p>
+        {{/if}}
+      </section>
+    </aside>
+  </main>
+
+  {{#if this.message}}<div class="toast-message">{{this.message}}</div>{{/if}}
+</div>

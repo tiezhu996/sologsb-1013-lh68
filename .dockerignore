@@ -1,0 +1,12 @@
+node_modules
+dist
+.npm-cache
+.git
+.gitignore
+.github
+.ember-cli
+.vscode
+npm-debug.log*
+Dockerfile
+README.md
+REQUIREMENT.md
