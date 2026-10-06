@@ -104,6 +104,8 @@
                     <span class="cue-index">{{cue.index}}</span>
                     <span class="cue-kind">{{cue.kind}}</span>
                     <h3>{{cue.title}}</h3>
+                    {{#if cue.anchored}}<span class="anchor-flag" title="固定锚点：重排传播到此停住">锚点</span>{{/if}}
+                    {{#if cue.pendingRefs.length}}<span class="pending-flag" title="引用了已删除的提示">待处理</span>{{/if}}
                     {{#if cue.hasIssue}}<span class="issue-flag">检查</span>{{/if}}
                   </div>
                   <p>
@@ -129,6 +131,65 @@
           </div>
           <button type="button" class="add-row" {{on "click" (fn this.createCueDraft "灯光")}}>＋ 添加提示点</button>
         </div>
+
+        {{#if this.preview}}
+          <section class="replan-panel paper-surface">
+            <div class="panel-heading">
+              <div>
+                <small>REPLAN PREVIEW</small>
+                <h2>预演重排：{{this.preview.cueTitle}}</h2>
+              </div>
+              <span class="replan-duration">{{this.preview.beforeDuration}}s → {{this.preview.afterDuration}}s</span>
+            </div>
+
+            {{#if this.previewErrorRows.length}}
+              <div class="apply-error">
+                <strong>应用失败，已恢复改前状态。冲突原因：</strong>
+                {{#each this.previewErrorRows as |stop|}}
+                  <p><span class="stop-kind kind-{{stop.kind}}">{{stop.kindLabel}}</span> {{stop.sceneLabel}}「{{stop.cueTitle}}」— {{stop.detail}}</p>
+                {{/each}}
+              </div>
+            {{/if}}
+
+            <div class="replan-columns">
+              <div class="replan-col">
+                <h3>受影响提示（{{this.previewRows.length}}）</h3>
+                {{#each this.previewRows as |move|}}
+                  <div class="replan-move">
+                    <strong>{{move.cueTitle}}</strong>
+                    <small>{{move.sceneLabel}} · {{move.beforeLabel}} → {{move.afterLabel}}</small>
+                    <small>{{move.cause}}</small>
+                  </div>
+                {{else}}
+                  <p class="empty-copy">没有其他提示需要顺延。</p>
+                {{/each}}
+              </div>
+              <div class="replan-col">
+                <h3>保留时间（{{this.previewStopRows.length}}）</h3>
+                {{#each this.previewStopRows as |stop|}}
+                  <div class="replan-stop">
+                    <strong>{{stop.cueTitle}} <span class="stop-kind kind-{{stop.kind}}">{{stop.kindLabel}}</span></strong>
+                    <small>{{stop.sceneLabel}}</small>
+                    <small>{{stop.detail}}</small>
+                  </div>
+                {{else}}
+                  <p class="empty-copy">没有被迫保留时间的提示。</p>
+                {{/each}}
+              </div>
+            </div>
+
+            <div class="strategy-row">
+              <span>冲突处理方式：</span>
+              <PaperButton @raised={{this.isShiftSection}} @primary={{this.isShiftSection}} @onClick={{fn this.chooseStrategy "shift-section"}}>顺延整段</PaperButton>
+              <PaperButton @raised={{this.isMoveConflicts}} @primary={{this.isMoveConflicts}} @onClick={{fn this.chooseStrategy "move-conflicts"}}>只移动冲突项</PaperButton>
+            </div>
+
+            <div class="replan-actions">
+              <PaperButton @onClick={{this.cancelReplan}}>取消</PaperButton>
+              <PaperButton @raised={{true}} @primary={{true}} @onClick={{this.confirmReplan}}>确认应用并写入修订</PaperButton>
+            </div>
+          </section>
+        {{/if}}
       {{/if}}
     </section>
 
@@ -160,9 +221,11 @@
         {{else if this.selectedCue}}
           <div class="selected-cue">
             <span class="selected-kind">{{this.selectedCue.kind}}</span>
+            {{#if this.selectedCue.anchor}}<span class="anchor-flag">锚点</span>{{/if}}
             <h3>{{this.selectedCue.title}}</h3>
             <dl>
               <dt>负责人</dt><dd>{{if this.selectedCue.owner this.selectedCue.owner "缺失"}}</dd>
+              <dt>时长</dt><dd>{{this.selectedCue.duration}} 秒</dd>
               <dt>灯光</dt><dd>{{if this.selectedCue.lighting this.selectedCue.lighting "—"}}</dd>
               <dt>音响</dt><dd>{{if this.selectedCue.sound this.selectedCue.sound "—"}}</dd>
               <dt>道具</dt><dd>{{if this.selectedCue.props.length this.selectedProps "—"}}</dd>
@@ -171,9 +234,15 @@
             </dl>
             <div class="inspector-actions">
               <PaperButton @onClick={{this.editSelectedCue}} @raised={{true}} @primary={{true}}>编辑提示</PaperButton>
+              <PaperButton @onClick={{this.toggleAnchor}}>{{if this.selectedCue.anchor "取消锚点" "设为锚点"}}</PaperButton>
               <PaperButton @onClick={{fn this.moveSelected -1}}>上移一条</PaperButton>
               <PaperButton @onClick={{fn this.moveSelected 1}}>下移一条</PaperButton>
             </div>
+            <div class="replan-launch">
+              <PaperInput @label="新时长（秒）" @type="number" @value={{this.replanDurationValue}} @onChange={{this.setReplanDuration}} />
+              <PaperButton @raised={{true}} @primary={{true}} @onClick={{this.startReplan}} @disabled={{this.activeScene.locked}}>预演重排</PaperButton>
+            </div>
+            <p class="replan-hint">修改时长后先预演：沿前置关系传播，遇锚点、循环或跨场撞场会停住并说明原因。</p>
           </div>
         {{else}}
           <p class="empty-copy">选择一条提示查看详细信息。</p>
@@ -197,6 +266,24 @@
         </div>
       </section>
 
+      <section class="revision-panel paper-surface">
+        <div class="panel-heading">
+          <div><small>REHEARSAL REVISIONS</small><h2>排练修订</h2></div>
+          <span class="issue-count revision-count">{{this.revisions.length}}</span>
+        </div>
+        <div class="issue-list revision-list">
+          {{#each this.revisionRows as |revision|}}
+            <div class="revision-item">
+              <strong>{{revision.cueTitle}} <span class="revision-delta">{{revision.beforeDuration}}s → {{revision.afterDuration}}s</span></strong>
+              <small>{{revision.sceneLabel}} · {{revision.strategyLabel}} · 顺延 {{revision.movedCount}} 条 · {{revision.timeLabel}}</small>
+              {{#if revision.note}}<small>{{revision.note}}</small>{{/if}}
+            </div>
+          {{else}}
+            <p class="empty-copy">确认重排后在此生成排练修订；锁定版本保持只读。</p>
+          {{/each}}
+        </div>
+      </section>
+
       <section class="version-panel paper-surface">
         <div class="panel-heading"><div><small>LOCKED VERSIONS</small><h2>版本比较</h2></div></div>
         {{#if this.versions.length}}
@@ -209,9 +296,10 @@
             <div class="diff-list">
               {{#each this.versionDiff as |diff|}}
                 <div class="diff-row {{if diff.changed "is-changed"}}">
-                  <span>{{diff.label}}</span>
-                  <p>{{diff.before}}</p>
-                  <p>{{diff.after}}</p>
+                  <span>{{diff.sceneLabel}} · {{diff.cueLabel}}{{if diff.added "（新增）"}}{{if diff.removed "（已移除）"}}</span>
+                  <p>负责人：{{diff.ownerBefore}} → {{diff.ownerAfter}}</p>
+                  <p>时长：{{diff.durationBefore}} → {{diff.durationAfter}}</p>
+                  <p>流程：{{diff.flowBefore}} → {{diff.flowAfter}}</p>
                 </div>
               {{/each}}
             </div>

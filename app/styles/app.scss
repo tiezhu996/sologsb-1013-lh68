@@ -730,6 +730,194 @@ kbd {
   line-height: 1.6;
 }
 
+.anchor-flag,
+.pending-flag {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 99px;
+  font-size: 9px;
+}
+
+.anchor-flag {
+  color: #1d5d8c;
+  background: #e3eef7;
+}
+
+.pending-flag {
+  color: #8a5a12;
+  background: #fdf0d7;
+}
+
+.cue-title-line .anchor-flag + .pending-flag,
+.cue-title-line .pending-flag + .issue-flag,
+.cue-title-line .anchor-flag + .issue-flag {
+  margin-left: 4px;
+}
+
+.replan-panel {
+  overflow: hidden;
+}
+
+.replan-duration {
+  padding: 4px 10px;
+  border-radius: 99px;
+  color: #1d5d8c;
+  background: #e3eef7;
+  font: 700 12px Consolas, monospace;
+}
+
+.apply-error {
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  border: 1px solid #e5b7bc;
+  border-radius: 8px;
+  color: #8e3038;
+  background: #fceff0;
+  font-size: 11px;
+}
+
+.apply-error strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.apply-error p {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.replan-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 14px 4px;
+}
+
+.replan-col h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+
+.replan-move,
+.replan-stop {
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.replan-move {
+  border: 1px solid #cfe0ec;
+  background: #f2f8fc;
+}
+
+.replan-stop {
+  border: 1px solid #eadfc8;
+  background: #fdf8ec;
+}
+
+.replan-move strong,
+.replan-move small,
+.replan-stop strong,
+.replan-stop small {
+  display: block;
+}
+
+.replan-move strong,
+.replan-stop strong {
+  font-size: 11px;
+}
+
+.replan-move small,
+.replan-stop small {
+  margin-top: 3px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.stop-kind {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 99px;
+  color: #6e531e;
+  background: #f5e8cd;
+  font-size: 9px;
+}
+
+.stop-kind.kind-cycle,
+.stop-kind.kind-resource {
+  color: #8e3038;
+  background: #f8dfe2;
+}
+
+.stop-kind.kind-anchor {
+  color: #1d5d8c;
+  background: #dcebf6;
+}
+
+.strategy-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.replan-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 4px 14px 14px;
+}
+
+.replan-launch {
+  margin-top: 14px;
+  padding-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+  border-top: 1px dashed #dfe5ea;
+}
+
+.replan-hint {
+  margin: 8px 0 0;
+  color: #929da6;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.revision-count {
+  background: var(--blue);
+}
+
+.revision-item {
+  padding: 8px;
+  border-radius: 8px;
+  color: #33465a;
+  background: #eef4f8;
+  font-size: 10px;
+}
+
+.revision-item strong,
+.revision-item small {
+  display: block;
+}
+
+.revision-item small {
+  margin-top: 3px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.revision-delta {
+  color: #1d5d8c;
+  font: 700 10px Consolas, monospace;
+}
+
 @media (max-width: 1240px) {
   .stage-header {
     grid-template-columns: 1fr auto;
