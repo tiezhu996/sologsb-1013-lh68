@@ -24,6 +24,7 @@
     <div class="show-stats">
       <span><strong>{{this.show.scenes.length}}</strong> 场次</span>
       <span><strong>{{this.allCues.length}}</strong> 条提示</span>
+      <span><strong>{{this.revisions.length}}</strong> 次排练修订</span>
       <span><strong>{{this.errors}}</strong> 项阻塞</span>
     </div>
     <div class="search-box">
@@ -32,7 +33,7 @@
   </section>
 
   <main class="stage-workspace">
-    <aside class="scene-rail paper-surface">
+    <aside class="scene-rail paper-surface" aria-label="幕次与场次">
       <div class="rail-heading">
         <div><small>SCENES</small><h2>幕次与场次</h2></div>
         <PaperButton @iconButton={{true}} @primary={{true}} @onClick={{this.addScene}} @title="新增场次">＋</PaperButton>
@@ -86,6 +87,7 @@
           </div>
           <div class="cue-list">
             {{#each this.cueRows as |cue|}}
+              {{!-- template-lint-disable no-invalid-interactive --}}
               <article
                 class="cue-row kind-{{cue.kindClass}} {{if cue.selected "is-selected"}}"
                 draggable="true"
@@ -94,6 +96,7 @@
                 {{on "drop" (fn this.dropOn cue.id)}}
                 {{on "click" (fn this.selectCue cue.id)}}
               >
+              {{!-- template-lint-enable no-invalid-interactive --}}
                 <div class="cue-time">
                   <span class="drag-dot">⠿</span>
                   <strong>{{cue.start}}</strong>
@@ -104,6 +107,8 @@
                     <span class="cue-index">{{cue.index}}</span>
                     <span class="cue-kind">{{cue.kind}}</span>
                     <h3>{{cue.title}}</h3>
+                    {{#if cue.anchor}}<span class="anchor-flag" title="固定锚点：重排传播在此停住">锚点</span>{{/if}}
+                    {{#if cue.pending}}<span class="pending-flag" title="引用的提示已删除，待处理">待处理</span>{{/if}}
                     {{#if cue.hasIssue}}<span class="issue-flag">检查</span>{{/if}}
                   </div>
                   <p>
@@ -132,7 +137,7 @@
       {{/if}}
     </section>
 
-    <aside class="inspector-rail">
+    <aside class="inspector-rail" aria-label="提示详情与检查">
       <section class="inspector paper-surface">
         <div class="inspector-heading">
           <div><small>{{if this.draft "CUE EDITOR" "CUE INSPECTOR"}}</small><h2>{{if this.draft "编辑提示" "提示详情"}}</h2></div>
@@ -160,9 +165,11 @@
         {{else if this.selectedCue}}
           <div class="selected-cue">
             <span class="selected-kind">{{this.selectedCue.kind}}</span>
+            {{#if this.selectedCue.anchor}}<span class="anchor-badge">固定锚点</span>{{/if}}
             <h3>{{this.selectedCue.title}}</h3>
             <dl>
               <dt>负责人</dt><dd>{{if this.selectedCue.owner this.selectedCue.owner "缺失"}}</dd>
+              <dt>时长</dt><dd>{{this.selectedCue.duration}} 秒</dd>
               <dt>灯光</dt><dd>{{if this.selectedCue.lighting this.selectedCue.lighting "—"}}</dd>
               <dt>音响</dt><dd>{{if this.selectedCue.sound this.selectedCue.sound "—"}}</dd>
               <dt>道具</dt><dd>{{if this.selectedCue.props.length this.selectedProps "—"}}</dd>
@@ -174,6 +181,22 @@
               <PaperButton @onClick={{fn this.moveSelected -1}}>上移一条</PaperButton>
               <PaperButton @onClick={{fn this.moveSelected 1}}>下移一条</PaperButton>
             </div>
+            {{#unless this.activeScene.locked}}
+              <div class="anchor-row">
+                <PaperButton @onClick={{this.toggleSelectedAnchor}}>
+                  {{if this.selectedCue.anchor "取消固定锚点" "设为固定锚点"}}
+                </PaperButton>
+              </div>
+              <div class="reschedule-box">
+                <small>RESCHEDULE</small>
+                <h4>时长重排预演</h4>
+                <div class="reschedule-controls">
+                  <PaperInput @label="新时长（秒）" @type="number" @value={{this.rescheduleInput}} @onChange={{this.setRescheduleInput}} />
+                  <PaperButton @raised={{true}} @primary={{true}} @onClick={{this.startReschedule}}>预演重排</PaperButton>
+                </div>
+                <p>沿前置关系传播；遇循环依赖、固定锚点或跨场演员 / 道具准备窗口冲突即停住，并列出保留时间的原因。</p>
+              </div>
+            {{/unless}}
           </div>
         {{else}}
           <p class="empty-copy">选择一条提示查看详细信息。</p>
@@ -197,8 +220,27 @@
         </div>
       </section>
 
+      <section class="revision-panel paper-surface">
+        <div class="panel-heading">
+          <div><small>REHEARSAL REVISIONS</small><h2>排练修订</h2></div>
+          <span class="issue-count revision-count">{{this.revisions.length}}</span>
+        </div>
+        {{#if this.revisionRows.length}}
+          <div class="revision-list">
+            {{#each this.revisionRows as |revision|}}
+              <div class="revision-item">
+                <strong>{{revision.summary}}</strong>
+                <small>{{revision.sceneLabel}} · {{revision.strategyLabel}} · 移动 {{revision.moves.length}} 条 · {{revision.createdLabel}}</small>
+              </div>
+            {{/each}}
+          </div>
+        {{else}}
+          <p class="empty-copy">尚无排练修订。确认一次重排预演后会自动写入记录。</p>
+        {{/if}}
+      </section>
+
       <section class="version-panel paper-surface">
-        <div class="panel-heading"><div><small>LOCKED VERSIONS</small><h2>版本比较</h2></div></div>
+        <div class="panel-heading"><div><small>LOCKED VERSIONS</small><h2>版本比较（锁定版只读）</h2></div></div>
         {{#if this.versions.length}}
           <PaperSelect @label="选择锁定版" @options={{this.versions}} @optionLabelPath="name" @selected={{this.compareVersion}} @onChange={{this.selectCompareVersion}} class="version-select" />
           {{#if this.compareVersion}}
@@ -207,11 +249,13 @@
               <small>{{this.compareVersion.data.title}} · {{this.versionDiff.length}} 条提示</small>
             </div>
             <div class="diff-list">
+              <div class="diff-head"><span>提示</span><span>负责人</span><span>时长</span><span>流程</span></div>
               {{#each this.versionDiff as |diff|}}
                 <div class="diff-row {{if diff.changed "is-changed"}}">
-                  <span>{{diff.label}}</span>
-                  <p>{{diff.before}}</p>
-                  <p>{{diff.after}}</p>
+                  <span class="diff-label">{{diff.label}}</span>
+                  <span>{{diff.owner}}</span>
+                  <span>{{diff.duration}}</span>
+                  <span>{{diff.flow}}</span>
                 </div>
               {{/each}}
             </div>
@@ -222,6 +266,100 @@
       </section>
     </aside>
   </main>
+
+  {{#if this.previewPlan}}
+    <div class="preview-backdrop">
+      <section class="preview-panel" role="dialog" aria-label="重排预演">
+        <div class="preview-head">
+          <div><small>RESCHEDULE PREVIEW</small><h2>重排预演</h2></div>
+          <button type="button" class="close-button" {{on "click" this.cancelPreview}}>×</button>
+        </div>
+        <p class="preview-target">「{{this.previewPlan.title}}」时长 {{this.previewPlan.durationBefore}} → {{this.previewPlan.durationAfter}} 秒（{{this.previewDeltaLabel}}）</p>
+
+        <div class="strategy-toggle">
+          <button type="button" class="strategy-button {{if this.isShiftStrategy "is-active"}}" {{on "click" (fn this.selectPreviewStrategy "shift-segment")}}>
+            <strong>顺延整段</strong>
+            <small>受影响段落整体顺移，保持衔接</small>
+          </button>
+          <button type="button" class="strategy-button {{unless this.isShiftStrategy "is-active"}}" {{on "click" (fn this.selectPreviewStrategy "move-conflicts")}}>
+            <strong>只移动冲突项</strong>
+            <small>仅推开重叠 / 冲突的提示，其余保留</small>
+          </button>
+        </div>
+
+        {{#if this.previewFailed}}
+          <div class="preview-failure">应用失败，已恢复改前状态。以下阻塞原因仍需处理：可切换策略，或调整锚点 / 前置关系后重试。</div>
+        {{/if}}
+
+        <div class="preview-body">
+          {{#if this.previewCycleRows.length}}
+            <div class="preview-section is-blocked">
+              <h3>循环依赖（传播已停住）</h3>
+              {{#each this.previewCycleRows as |cycle|}}
+                <p class="preview-line">{{cycle}}</p>
+              {{/each}}
+            </div>
+          {{/if}}
+
+          {{#if this.previewMoveRows.length}}
+            <div class="preview-section">
+              <h3>受影响提示（{{this.previewMoveRows.length}} 条将移动）</h3>
+              {{#each this.previewMoveRows as |move|}}
+                <div class="preview-move">
+                  <span class="move-scene">{{move.sceneLabel}}</span>
+                  <strong>{{move.title}}</strong>
+                  <span class="move-time">{{move.before}} → {{move.after}}</span>
+                  <small>{{move.reason}}</small>
+                </div>
+              {{/each}}
+            </div>
+          {{else}}
+            <p class="preview-empty">没有需要移动的提示。</p>
+          {{/if}}
+
+          {{#if this.previewBlockedRows.length}}
+            <div class="preview-section is-blocked">
+              <h3>保留时间的提示（{{this.previewBlockedRows.length}} 条）</h3>
+              {{#each this.previewBlockedRows as |block|}}
+                <div class="preview-move">
+                  <span class="move-scene">{{block.sceneLabel}}</span>
+                  <strong>{{block.title}}</strong>
+                  <span class="move-time">保持 {{block.kept}}</span>
+                  <small>{{block.reason}}</small>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+
+          {{#if this.previewPlan.conflicts.length}}
+            <div class="preview-section is-blocked">
+              <h3>未解决的跨场资源冲突</h3>
+              {{#each this.previewPlan.conflicts as |conflict|}}
+                <p class="preview-line">{{conflict.detail}}</p>
+              {{/each}}
+            </div>
+          {{/if}}
+
+          {{#if this.previewPlan.violations.length}}
+            <div class="preview-section is-blocked">
+              <h3>校验未通过</h3>
+              {{#each this.previewPlan.violations as |violation|}}
+                <p class="preview-line">{{violation}}</p>
+              {{/each}}
+            </div>
+          {{/if}}
+        </div>
+
+        <footer class="preview-foot">
+          <span class="preview-status {{if this.previewPlan.applicable "is-ok" "is-bad"}}">
+            {{if this.previewPlan.applicable "方案可应用" (concat this.previewBlockerCount " 项阻塞 · 应用将失败并回滚")}}
+          </span>
+          <PaperButton @onClick={{this.cancelPreview}}>取消</PaperButton>
+          <PaperButton @raised={{true}} @primary={{true}} @onClick={{this.applyPreview}}>应用重排（{{this.previewStrategyLabel}}）</PaperButton>
+        </footer>
+      </section>
+    </div>
+  {{/if}}
 
   {{#if this.message}}<div class="toast-message">{{this.message}}</div>{{/if}}
 </div>
